@@ -1,2 +1,2 @@
 # github-selfhosted-runner
-Self-hosted Gitlab Runner docker image
+Self-hosted Github Runner docker image
