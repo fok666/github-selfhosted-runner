@@ -1,11 +1,11 @@
 # github-selfhosted-runner
 
-GitHub Self-Hosted Linux Runner on Docker. This project can be used to create customizable Docker images with pre-installed tools for GitHub Actions pipelines. Pre-installing commonly used tools speeds up pipeline execution.
+GitHub Self-Hosted Linux Runner. General purpose Docker image with pre-installed tools.
 
 Goals:
 
 - Run anywhere
-- Scalable
+- Auto scalable
 - Self-configurable
 - Feature rich
 - Customizable
@@ -15,8 +15,8 @@ Goals:
 
 Bundled tools:
 
-- [Docker-in-Docker](https://learn.microsoft.com/azure/devops/pipelines/agents/docker) -->
-- [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli-linux) (azure-devops & resource-graph extensions)
+- [Docker-in-Docker](https://docs.docker.com/engine/install/)
+- [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli-linux)
 - [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
 - [Powershell](https://learn.microsoft.com/powershell/scripting/install/installing-powershell-on-linux)
 - [Azure Powershell modules](https://learn.microsoft.com/powershell/azure/install-azps-linux)
@@ -27,12 +27,13 @@ Bundled tools:
 - [Helm](https://helm.sh/docs/intro/install/)
 - [JQ](https://github.com/jqlang/jq) & [YQ](https://github.com/mikefarah/yq)
 - [Terraform](https://developer.hashicorp.com/terraform/install)
+- [OpenTofu](https://opentofu.org/docs/intro/install/)
 - [Terraspace](https://terraspace.cloud/docs/install/)
 
 
 ## Build configuration
 
-Supported `--build-arg` variables are listed below to easily customize the runner image based on your requirements. All options default to 1 (enabled).
+Supported `--build-arg` variables are listed below to easily configure the runner image based on your requirements. All options default to 1 (enabled).
 
 - `ADD_DOCKER`: Installs Docker for Docker-in-Docker support
 - `ADD_AZURE_CLI`: Installs Azure-CLI
@@ -47,6 +48,7 @@ Supported `--build-arg` variables are listed below to easily customize the runne
 - `ADD_JQ`: Installs `jq` tool
 - `ADD_YQ`: Installs `yq` tool
 - `ADD_TERRAFORM`: Installs `terraform` tool
+- `ADD_OPENTOFU`: Installs `opentofu` tool
 - `ADD_TERRASPACE`: Installs `terraspace` tool
 - `ADD_SUDO`: Installs and enables `sudo` for the runner user group
 
@@ -58,7 +60,7 @@ https://github.com/actions/runner
 
 
 ### Docker Hub images
-https://hub.docker.com/r/fok666/githubrunner
+https://hub.docker.com/r/fok666/github-runner
 
 
 ### GitHub Actions Self-Hosted Runners Reference
@@ -88,17 +90,20 @@ sudo curl -sO https://raw.githubusercontent.com/fok666/github-selfhosted-runner/
 sudo curl -sO https://raw.githubusercontent.com/fok666/github-selfhosted-runner/main/stop.sh
 sudo chmod +x *.sh
 
-# Set the parameters from Azure DevOps:
-export ORG_URL="https://github.com/YOUR-ORGANIZATION"
-export REGISTRATION_TOKEN="xxxxxxxxxxxxxxxxxxxxxxxxxxx"
+# Set the parameters from GitHub:
+export GITHUB_URL="https://github.com/YOUR-ORGANIZATION"
+export GITHUB_TOKEN="xxxxxxxxxxxxxxxxxxxxxxxxxxx"
 export RUNNER_NAME="YourRunner"
-
-# Examples
-# ./config.sh --url ${ORG_URL} --token ${REGISTRATION_TOKEN} --ephemeral
-# ./config.sh --url ${ORG_URL} --token ${REGISTRATION_TOKEN} --disableupdate
+export RUNNER_LABELS="self-hosted,Linux,X64"
 
 # Start the runners in privileged mode, one runner for each vCPU, using the parameters above:
-sudo ./run.sh fok666/githubrunner:latest $ORG_URL $REGISTRATION_TOKEN $RUNNER_NAME
+sudo docker run -d --privileged \
+  -e GITHUB_URL="${GITHUB_URL}" \
+  -e GITHUB_TOKEN="${GITHUB_TOKEN}" \
+  -e RUNNER_NAME="${RUNNER_NAME}" \
+  -e RUNNER_LABELS="${RUNNER_LABELS}" \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  fok666/github-runner:latest
 ```
 
 

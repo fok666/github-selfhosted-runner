@@ -1,25 +1,69 @@
 #!/bin/bash
+set -e
 
-# Source:
-# https://github.com/HomeLabHQ/runner
+if [ -z "$GITHUB_URL" ]; then
+  echo 1>&2 "error: missing GITHUB_URL environment variable"
+  exit 1
+fi
 
-ORGANIZATION=$ORGANIZATION
-ACCESS_TOKEN=$ACCESS_TOKEN
+if [ -z "$GITHUB_TOKEN_FILE" ]; then
+  if [ -z "$GITHUB_TOKEN" ]; then
+    echo 1>&2 "error: missing GITHUB_TOKEN environment variable"
+    exit 1
+  fi
 
+  GITHUB_TOKEN_FILE=/runner/.token
+  echo -n $GITHUB_TOKEN > "$GITHUB_TOKEN_FILE"
+fi
 
-REG_TOKEN=$(curl -sX POST -H "Authorization: token ${ACCESS_TOKEN}" https://api.github.com/orgs/${ORGANIZATION}/actions/runners/registration-token | jq .token --raw-output)
+unset GITHUB_TOKEN
 
-cd /home/docker/actions-runner
+if [ -n "$RUNNER_WORK_DIRECTORY" ]; then
+  mkdir -p "$RUNNER_WORK_DIRECTORY"
+fi
 
-./config.sh --url https://github.com/${ORGANIZATION} --token ${REG_TOKEN}
+export AGENT_ALLOW_RUNASROOT="1"
 
 cleanup() {
-    echo "Removing runner..."
-    ./config.sh remove --unattended --token ${REG_TOKEN}
+  if [ -e config.sh ]; then
+    print_header "Cleanup. Removing GitHub Runner..."
+
+    # If the agent has some running jobs, the configuration removal process will fail.
+    # So, give it some time to finish the job.
+    while true; do
+      ./config.sh remove --token $(cat "$GITHUB_TOKEN_FILE") && break
+
+      echo "Retrying in 30 seconds..."
+      sleep 30
+    done
+  fi
 }
 
+print_header() {
+  lightcyan='\033[1;36m'
+  nocolor='\033[0m'
+  echo -e "${lightcyan}$1${nocolor}"
+}
+
+# Let the agent ignore the token env variables
+export VSO_AGENT_IGNORE=GITHUB_TOKEN,GITHUB_TOKEN_FILE
+
+print_header "1. Configuring GitHub Runner..."
+
+./config.sh --unattended \
+  --name "${RUNNER_NAME:-$(hostname)}" \
+  --url "$GITHUB_URL" \
+  --token $(cat "$GITHUB_TOKEN_FILE") \
+  --labels "${RUNNER_LABELS:-default}" \
+  --work "${RUNNER_WORK_DIRECTORY:-_work}" \
+  --replace
+
+print_header "2. Running GitHub Runner..."
+
+trap 'cleanup; exit 0' EXIT
 trap 'cleanup; exit 130' INT
 trap 'cleanup; exit 143' TERM
 
-./run.sh &
-wait $!
+# To be aware of TERM and INT signals call run.sh
+# Running it with the --once flag at the end will shut down the agent after the build is executed
+./run.sh "$@"
