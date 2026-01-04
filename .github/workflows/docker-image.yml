@@ -244,6 +244,10 @@ jobs:
           rm -f /tmp/image-${{ matrix.profile }}.tar
           docker system prune -af --volumes
 
+      - name: Clear Trivy cache
+        if: always()
+        run: rm -rf ~/.cache/trivy
+
   test:
     name: Test Image (${{ matrix.profile }})
     runs-on: ubuntu-latest
@@ -283,10 +287,6 @@ jobs:
         run: |
           rm -f /tmp/image-${{ matrix.profile }}.tar
           docker system prune -af --volumes
-
-      - name: Clear Trivy cache
-        if: always()
-        run: rm -rf ~/.cache/trivy
 
   push:
     name: Push to Registries (${{ matrix.profile }})
