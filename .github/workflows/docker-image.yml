@@ -180,7 +180,7 @@ jobs:
           outputs: type=docker,dest=/tmp/image-${{ matrix.profile.name }}.tar
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: docker-image-${{ matrix.profile.name }}
           path: /tmp/image-${{ matrix.profile.name }}.tar
@@ -459,7 +459,7 @@ jobs:
           output-file: sbom-spdx-${{ matrix.profile.name }}.json
 
       - name: Upload SBOM
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: sbom-${{ matrix.profile.name }}
           path: sbom-spdx-${{ matrix.profile.name }}.json
