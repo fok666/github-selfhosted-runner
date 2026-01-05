@@ -1,57 +1,124 @@
 #!/bin/bash
+set -e
 
-AZP_IMAGE="$1"
-AZP_URL="$2"
-AZP_TOKEN="$3"
-AZP_POOL="$4"
+# GitHub Self-Hosted Runner Script
+# Reference: https://docs.github.com/en/actions/hosting-your-own-runners
 
-USAGE_HELP="Usage: $0 <AZP_IMAGE> <AZP_URL> <AZP_TOKEN> <AZP_POOL>"
+RUNNER_IMAGE="$1"
+GITHUB_URL="$2"
+GITHUB_TOKEN="$3"
+RUNNER_LABELS="${4:-default}"
+RUNNER_COUNT="${5}"
 
-# Test if AZP_IMAGE is empty, exit with error if true
-if [ -z "$AZP_IMAGE" ]; then
-  echo $USAGE_HELP
+USAGE_HELP="Usage: $0 <RUNNER_IMAGE> <GITHUB_URL> <GITHUB_TOKEN> [RUNNER_LABELS] [RUNNER_COUNT]
+
+Parameters:
+  RUNNER_IMAGE    - Docker image name for GitHub runner
+  GITHUB_URL      - GitHub repository or organization URL
+                    Examples:
+                      - Repository: https://github.com/owner/repo
+                      - Organization: https://github.com/organization
+  GITHUB_TOKEN    - GitHub Personal Access Token or registration token
+  RUNNER_LABELS   - Comma-separated labels for runner (default: 'default')
+  RUNNER_COUNT    - Number of runner instances (default: auto-detect from CPU count)
+
+Example:
+  $0 ghcr.io/myorg/runner:latest https://github.com/myorg/myrepo ghp_xxxxxxxxxxxx \"self-hosted,linux\" 4
+"
+
+# Validate required parameters
+if [ -z "$RUNNER_IMAGE" ]; then
+  echo "Error: RUNNER_IMAGE is required"
+  echo "$USAGE_HELP"
   exit 1
 fi
 
-# Test if AZP_URL is empty, exit with error if true
-if [ -z "$AZP_URL" ]; then
-  echo $USAGE_HELP
+if [ -z "$GITHUB_URL" ]; then
+  echo "Error: GITHUB_URL is required"
+  echo "$USAGE_HELP"
   exit 1
 fi
 
-# Test if AZP_TOKEN is empty, exit with error if true
-if [ -z "$AZP_TOKEN" ]; then
-  echo $USAGE_HELP
+if [ -z "$GITHUB_TOKEN" ]; then
+  echo "Error: GITHUB_TOKEN is required"
+  echo "$USAGE_HELP"
   exit 1
 fi
 
-# Test if AZP_POOL is empty, exit with error if true
-if [ -z "$AZP_POOL" ]; then
-  echo $USAGE_HELP
+# Validate GitHub URL format
+if [[ ! "$GITHUB_URL" =~ ^https://github\.com/[^/]+(/[^/]+)?$ ]]; then
+  echo "Error: Invalid GITHUB_URL format. Must be https://github.com/owner/repo or https://github.com/organization"
   exit 1
 fi
 
 # Get total CPU count from the system
-CPU_COUNT=$(lscpu -p=CPU | grep -v "^#" | wc -l)
-# Limit the number of vCPU count per agent to 2 when there are more than 1 vCPU is available, cap it to 1 vCPU otherwise
-MAX_CPU=$(($CPU_COUNT>1 ? 2 : 1))
-# Get the Docker socket endpoint from current context
-DOCKER_SOCK_ENDPOINT=$(docker context inspect | jq -r '.[]|.Endpoints.docker.Host')
+CPU_COUNT=$(lscpu -p=CPU | grep -v "^#" | wc -l 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo "2")
 
-for R in `seq 1 $CPU_COUNT`; do
-  sudo mkdir -p /mnt/agent${R}/w
-  sudo docker run \
-  --privileged \
-  --tty \
-  --detach \
-  --cpus="${MAX_CPU}" \
-  -e AZP_URL="$AZP_URL" \
-  -e AZP_TOKEN="$AZP_TOKEN" \
-  -e AZP_POOL="$AZP_POOL" \
-  -e AZP_AGENT_NAME=sha-`hostname`-$R \
-  -v ${DOCKER_SOCK_ENDPOINT#unix://*}:/var/run/docker.sock \
-  -v /mnt/agent${R}/w:/_work \
-  --restart always \
-  --name agent$R \
-  $AZP_IMAGE
+# Set runner count (use provided value or default to CPU count)
+RUNNER_COUNT=${RUNNER_COUNT:-$CPU_COUNT}
+
+# Limit the number of vCPU count per runner to 2 when there are more than 1 vCPU available, cap it to 1 vCPU otherwise
+MAX_CPU=$((CPU_COUNT > 1 ? 2 : 1))
+
+# Get the Docker socket endpoint from current context
+DOCKER_SOCK_ENDPOINT=$(docker context inspect 2>/dev/null | jq -r '.[]|.Endpoints.docker.Host' || echo "unix:///var/run/docker.sock")
+
+# Extract socket path
+DOCKER_SOCK_PATH=${DOCKER_SOCK_ENDPOINT#unix://}
+DOCKER_SOCK_PATH=${DOCKER_SOCK_PATH:-/var/run/docker.sock}
+
+echo "Starting $RUNNER_COUNT GitHub self-hosted runner(s)..."
+echo "Image: $RUNNER_IMAGE"
+echo "GitHub URL: $GITHUB_URL"
+echo "Labels: $RUNNER_LABELS"
+echo "CPUs per runner: $MAX_CPU"
+echo ""
+
+# Launch runners
+for R in $(seq 1 $RUNNER_COUNT); do
+  RUNNER_NAME="runner-$(hostname)-$R"
+  WORK_DIR="/mnt/runner${R}/_work"
+  CONTAINER_NAME="github-runner-$R"
+  
+  # Create work directory
+  sudo mkdir -p "$WORK_DIR"
+  
+  echo "Starting runner $R/$RUNNER_COUNT: $RUNNER_NAME"
+  
+  # Check if container already exists
+  if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
+    echo "  Removing existing container: $CONTAINER_NAME"
+    docker rm -f "$CONTAINER_NAME" > /dev/null 2>&1 || true
+  fi
+  
+  # Run GitHub runner container
+  docker run \
+    --privileged \
+    --tty \
+    --detach \
+    --cpus="${MAX_CPU}" \
+    -e GITHUB_URL="$GITHUB_URL" \
+    -e GITHUB_TOKEN="$GITHUB_TOKEN" \
+    -e RUNNER_NAME="$RUNNER_NAME" \
+    -e RUNNER_LABELS="$RUNNER_LABELS" \
+    -e RUNNER_WORK_DIRECTORY="/_work" \
+    -v "$DOCKER_SOCK_PATH":/var/run/docker.sock \
+    -v "$WORK_DIR":/_work \
+    --restart unless-stopped \
+    --name "$CONTAINER_NAME" \
+    "$RUNNER_IMAGE"
+  
+  echo "  Container $CONTAINER_NAME started successfully"
 done
+
+echo ""
+echo "All runners started successfully!"
+echo ""
+echo "To check runner status:"
+echo "  docker ps --filter name=github-runner"
+echo ""
+echo "To view runner logs:"
+echo "  docker logs -f github-runner-1"
+echo ""
+echo "To stop all runners:"
+echo "  ./stop.sh"
