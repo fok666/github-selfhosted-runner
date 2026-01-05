@@ -198,7 +198,8 @@ RUN test "${ADD_KUSTOMIZE}" = "1" || exit 0 && \
 
 # Install GitHub Runner
 WORKDIR /runner
-RUN curl -LsS "https://github.com/actions/runner/releases/download/v${AGENT_VERSION}/actions-runner-linux-${TARGETARCH}-${AGENT_VERSION}.tar.gz" | tar -xz \
+RUN RUNNER_ARCH=$([ "${TARGETARCH}" = "amd64" ] && echo "x64" || echo "arm64") && \
+    curl -LsS "https://github.com/actions/runner/releases/download/v${AGENT_VERSION}/actions-runner-linux-${RUNNER_ARCH}-${AGENT_VERSION}.tar.gz" | tar -xz \
     && ./bin/installdependencies.sh
 
 # Agent Startup script
