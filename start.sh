@@ -13,7 +13,7 @@ if [ -z "$GITHUB_TOKEN_FILE" ]; then
   fi
 
   GITHUB_TOKEN_FILE=/runner/.token
-  echo -n $GITHUB_TOKEN > "$GITHUB_TOKEN_FILE"
+  echo -n "$GITHUB_TOKEN" > "$GITHUB_TOKEN_FILE"
 fi
 
 unset GITHUB_TOKEN
@@ -31,7 +31,7 @@ cleanup() {
     # If the agent has some running jobs, the configuration removal process will fail.
     # So, give it some time to finish the job.
     while true; do
-      ./config.sh remove --token $(cat "$GITHUB_TOKEN_FILE") && break
+      ./config.sh remove --token "$(cat "$GITHUB_TOKEN_FILE")" && break
 
       echo "Retrying in 30 seconds..."
       sleep 30
@@ -53,7 +53,7 @@ print_header "1. Configuring GitHub Runner..."
 ./config.sh --unattended \
   --name "${RUNNER_NAME:-$(hostname)}" \
   --url "$GITHUB_URL" \
-  --token $(cat "$GITHUB_TOKEN_FILE") \
+  --token "$(cat "$GITHUB_TOKEN_FILE")" \
   --labels "${RUNNER_LABELS:-default}" \
   --work "${RUNNER_WORK_DIRECTORY:-_work}" \
   --replace
