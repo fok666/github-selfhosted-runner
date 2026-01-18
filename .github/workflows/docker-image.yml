@@ -18,7 +18,7 @@ on:
   workflow_dispatch:
     inputs:
       AGENT_VERSION:
-        description: 'Runner version (e.g., 2.321.0). Leave empty to use repository variable or Dockerfile default.'
+        description: 'Runner version (e.g., 17.9.0). Leave empty to use repository variable or Dockerfile default.'
         required: false
         type: string
 
@@ -46,7 +46,14 @@ jobs:
       - name: Extract versions from Dockerfile
         id: versions
         run: |
-          AGENT_VERSION=$(grep '^ARG AGENT_VERSION=' Dockerfile | cut -d'=' -f2)
+          # Use workflow input if provided, else repository variable, else Dockerfile default
+          if [ -n "${{ inputs.AGENT_VERSION }}" ]; then
+            AGENT_VERSION="${{ inputs.AGENT_VERSION }}"
+          elif [ -n "${{ vars.AGENT_VERSION }}" ]; then
+            AGENT_VERSION="${{ vars.AGENT_VERSION }}"
+          else
+            AGENT_VERSION=$(grep '^ARG AGENT_VERSION=' Dockerfile | cut -d'=' -f2)
+          fi
           OS_VERSION=$(grep '^FROM ubuntu:' Dockerfile | cut -d':' -f2)
           echo "agent=${AGENT_VERSION}" >> $GITHUB_OUTPUT
           echo "os=${OS_VERSION}" >> $GITHUB_OUTPUT
@@ -59,7 +66,6 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            ${{ env.REGISTRY_IMAGE }}
             ${{ env.GHCR_IMAGE }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
@@ -86,26 +92,14 @@ jobs:
           context: .
           platforms: ${{ matrix.platform }}
           push: false
-          build-args: |
-            ADD_DOCKER=${{ matrix.profile.docker }}
-            ADD_AZURE_CLI=${{ matrix.profile.azure_cli }}
-            ADD_AWS_CLI=${{ matrix.profile.aws_cli }}
-            ADD_POWERSHELL=${{ matrix.profile.powershell }}
-            ADD_AZURE_PWSH_CLI=${{ matrix.profile.azure_pwsh }}
-            ADD_AWS_PWSH_CLI=${{ matrix.profile.aws_pwsh }}
-            ADD_KUBECTL=${{ matrix.profile.kubectl }}
-            ADD_KUBELOGIN=${{ matrix.profile.kubelogin }}
-            ADD_KUSTOMIZE=${{ matrix.profile.kustomize }}
-            ADD_HELM=${{ matrix.profile.helm }}
-            ADD_YQ=${{ matrix.profile.yq }}
-            ADD_JQ=${{ matrix.profile.jq }}
-            ADD_TERRAFORM=${{ matrix.profile.terraform }}
-            ADD_OPENTOFU=${{ matrix.profile.opentofu }}
-            ADD_TERRASPACE=${{ matrix.platform == 'linux/amd64' && matrix.profile.terraspace || 0 }}
-            ADD_SUDO=${{ matrix.profile.sudo }}
+          target: ${{ matrix.profile.name }}
           tags: ${{ env.REGISTRY_IMAGE }}:test-${{ matrix.profile.name }}-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=${{ matrix.profile.name }}-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
+          cache-from: |
+            type=gha,scope=base-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
+            type=gha,scope=common-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
+            type=gha,scope=docker-tools-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
+            type=gha,scope=${{ matrix.profile.name }}-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
           cache-to: type=gha,mode=max,scope=${{ matrix.profile.name }}-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
           outputs: type=docker,dest=/tmp/image-${{ matrix.profile.name }}-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}.tar
 
@@ -130,7 +124,6 @@ jobs:
       matrix:
         profile: ${{ github.event_name == 'pull_request' && fromJSON('["full"]') || fromJSON('["full", "minimal", "k8s", "iac", "iac-pwsh"]') }}
         platform: ${{ github.event_name == 'pull_request' && fromJSON('["amd64", "arm64"]') || fromJSON('["amd64"]') }}
-    
     steps:
       - name: Download artifact
         uses: actions/download-artifact@v7
@@ -187,7 +180,6 @@ jobs:
       matrix:
         profile: ${{ github.event_name == 'pull_request' && fromJSON('["full"]') || fromJSON('["full", "minimal", "k8s", "iac", "iac-pwsh"]') }}
         platform: ${{ github.event_name == 'pull_request' && fromJSON('["amd64", "arm64"]') || fromJSON('["amd64"]') }}
-    
     steps:
       - name: Check out the repo
         uses: actions/checkout@v6
@@ -314,6 +306,7 @@ jobs:
             opentofu: 1
             terraspace: 1
             sudo: 1
+    
     steps:
       - name: Check out the repo
         uses: actions/checkout@v6
@@ -321,7 +314,14 @@ jobs:
       - name: Extract versions from Dockerfile
         id: versions
         run: |
-          AGENT_VERSION=$(grep '^ARG AGENT_VERSION=' Dockerfile | cut -d'=' -f2)
+          # Use workflow input if provided, else repository variable, else Dockerfile default
+          if [ -n "${{ inputs.AGENT_VERSION }}" ]; then
+            AGENT_VERSION="${{ inputs.AGENT_VERSION }}"
+          elif [ -n "${{ vars.AGENT_VERSION }}" ]; then
+            AGENT_VERSION="${{ vars.AGENT_VERSION }}"
+          else
+            AGENT_VERSION=$(grep '^ARG AGENT_VERSION=' Dockerfile | cut -d'=' -f2)
+          fi
           OS_VERSION=$(grep '^FROM ubuntu:' Dockerfile | cut -d':' -f2)
           echo "agent=${AGENT_VERSION}" >> $GITHUB_OUTPUT
           echo "os=${OS_VERSION}" >> $GITHUB_OUTPUT
@@ -341,7 +341,6 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            ${{ env.REGISTRY_IMAGE }}
             ${{ env.GHCR_IMAGE }}
 
       - name: Get the date
@@ -360,28 +359,17 @@ jobs:
           context: .
           platforms: linux/${{ matrix.platform }}
           push: true
+          target: ${{ matrix.profile.name }}
           build-args: |
             AGENT_VERSION=${{ steps.versions.outputs.agent }}
-            ADD_DOCKER=${{ matrix.profile.docker }}
-            ADD_AZURE_CLI=${{ matrix.profile.azure_cli }}
-            ADD_AWS_CLI=${{ matrix.profile.aws_cli }}
-            ADD_POWERSHELL=${{ matrix.profile.powershell }}
-            ADD_AZURE_PWSH_CLI=${{ matrix.profile.azure_pwsh }}
-            ADD_AWS_PWSH_CLI=${{ matrix.profile.aws_pwsh }}
-            ADD_KUBECTL=${{ matrix.profile.kubectl }}
-            ADD_KUBELOGIN=${{ matrix.profile.kubelogin }}
-            ADD_KUSTOMIZE=${{ matrix.profile.kustomize }}
-            ADD_HELM=${{ matrix.profile.helm }}
-            ADD_YQ=${{ matrix.profile.yq }}
-            ADD_JQ=${{ matrix.profile.jq }}
-            ADD_TERRAFORM=${{ matrix.profile.terraform }}
-            ADD_OPENTOFU=${{ matrix.profile.opentofu }}
-            ADD_TERRASPACE=${{ matrix.platform == 'amd64' && matrix.profile.terraspace || 0 }}
-            ADD_SUDO=${{ matrix.profile.sudo }}
           tags: |
             ${{ env.GHCR_IMAGE }}:${{ steps.versions.outputs.agent }}-ubuntu${{ steps.versions.outputs.os }}-${{ matrix.profile.name }}-${{ steps.date.outputs.date }}-${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=${{ matrix.profile.name }}-${{ matrix.platform }}
+          cache-from: |
+            type=gha,scope=base-${{ matrix.platform }}
+            type=gha,scope=common-${{ matrix.platform }}
+            type=gha,scope=docker-tools-${{ matrix.platform }}
+            type=gha,scope=${{ matrix.profile.name }}-${{ matrix.platform }}
           cache-to: type=gha,mode=max,scope=${{ matrix.profile.name }}-${{ matrix.platform }}
           sbom: true
           provenance: true
