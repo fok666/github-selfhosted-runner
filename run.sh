@@ -75,7 +75,7 @@ echo "CPUs per runner: $MAX_CPU"
 echo ""
 
 # Launch runners
-for R in $(seq 1 $RUNNER_COUNT); do
+for R in $(seq 1 "$RUNNER_COUNT"); do
   RUNNER_NAME="runner-$(hostname)-$R"
   WORK_DIR="/mnt/runner${R}/_work"
   CONTAINER_NAME="github-runner-$R"
@@ -92,6 +92,10 @@ for R in $(seq 1 $RUNNER_COUNT); do
   fi
   
   # Run GitHub runner container
+  # SECURITY NOTE: --privileged mode grants extended privileges to the container.
+  # This is required for Docker-in-Docker but poses security risks.
+  # Consider using rootless Docker or Docker socket mounting as alternatives.
+  # If --privileged is not needed for your use case, remove this flag.
   docker run \
     --privileged \
     --tty \
