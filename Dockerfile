@@ -215,6 +215,21 @@ COPY --from=k8s-tools /usr/local/bin/kustomize /usr/local/bin/kustomize
 COPY --from=k8s-tools /usr/bin/helm /usr/local/bin/helm
 
 # ============================================================================
+# Stage 6b: GH-CLI-TOOLS - Add GitHub CLI (full profile only)
+# Used by: full
+# ============================================================================
+FROM full-tools AS gh-cli-tools
+
+# Install GitHub CLI https://cli.github.com/
+RUN mkdir -p -m 755 /etc/apt/keyrings \
+    && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null \
+    && chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+    && apt-get update && apt-get install -y --no-install-recommends gh \
+    && apt clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# ============================================================================
 # FINAL STAGES - One per profile with finalization
 # ============================================================================
 
@@ -258,8 +273,8 @@ USER runner
 ENV AGENT_ALLOW_RUNASROOT="false"
 ENTRYPOINT [ "./start.sh" ]
 
-# Profile: full (everything - k8s + iac + powershell)
-FROM full-tools AS full
+# Profile: full (everything - k8s + iac + powershell + github cli)
+FROM gh-cli-tools AS full
 COPY --chmod=0755 ./start.sh .
 COPY --chmod=0755 ./test-tools.sh .
 RUN useradd -m -d /home/runner runner \
