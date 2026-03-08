@@ -60,11 +60,6 @@ docker build --target full -t github-runner:full .
 # Build for specific architecture
 docker buildx build --platform linux/amd64 --target full -t github-runner:full-amd64 .
 ```
-- `ADD_YQ`: Installs `yq` tool
-- `ADD_TERRAFORM`: Installs `terraform` tool
-- `ADD_OPENTOFU`: Installs `opentofu` tool
-- `ADD_TERRASPACE`: Installs `terraspace` tool
-- `ADD_SUDO`: Installs and enables `sudo` for the runner user group
 
 
 ## Available Profiles
@@ -140,10 +135,10 @@ export GITHUB_TOKEN="xxxxxxxxxxxxxxxxxxxxxxxxxxx"
 export RUNNER_LABELS="self-hosted,linux,x64"
 
 # Start the runners in privileged mode, one runner for each vCPU (default), using the parameters above:
-sudo ./run.sh fok666/github-runner:latest $GITHUB_URL $GITHUB_TOKEN $RUNNER_LABELS
+sudo ./run.sh fok666/github-runner:latest-full $GITHUB_URL $GITHUB_TOKEN $RUNNER_LABELS
 
 # Or specify a custom number of runners (e.g., 4 runners):
-sudo ./run.sh fok666/github-runner:latest $GITHUB_URL $GITHUB_TOKEN $RUNNER_LABELS 4
+sudo ./run.sh fok666/github-runner:latest-full $GITHUB_URL $GITHUB_TOKEN $RUNNER_LABELS 4
 ```
 
 
