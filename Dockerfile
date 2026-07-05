@@ -51,7 +51,7 @@ RUN echo "APT::Get::Assume-Yes \"true\";" > /etc/apt/apt.conf.d/90assumeyes \
     libssl-dev\
     libssl3 \
     liblttng-ust-common1t64 \
-    liblttng-ust-ctl6t64 \
+    liblttng-ust-ctl6 \
     liblttng-ust1t64 \
     libnuma1 \
     libdpkg-perl \
