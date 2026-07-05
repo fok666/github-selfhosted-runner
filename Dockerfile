@@ -17,7 +17,7 @@ LABEL org.opencontainers.image.licenses=MIT
 LABEL org.opencontainers.image.authors="Fernando Korndorfer"
 LABEL org.opencontainers.image.version="${AGENT_VERSION}"
 LABEL org.opencontainers.image.base.name="ubuntu"
-LABEL org.opencontainers.image.base.version="24.04"
+LABEL org.opencontainers.image.base.version="26.04"
 
 USER root
 
